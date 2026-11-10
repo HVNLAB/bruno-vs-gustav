@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#10142e">
+    <title>Psia Dogrywka 16-BIT - BRUNO vs GUSTAV</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: linear-gradient(160deg, #10142e 0%, #1a0f2e 50%, #0d0f1a 100%);
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 10px;
+            padding-left: max(10px, env(safe-area-inset-left));
+            padding-right: max(10px, env(safe-area-inset-right));
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        /* Canvas skaluje się tak, by zmieścić się na ekranie wraz z przyciskami dotykowymi */
+        #game-container {
+            position: relative;
+            width: min(96vw, 800px, calc((100vh - 150px) * 1.6));
+            width: min(96vw, 800px, calc((100dvh - 150px) * 1.6));
+            box-shadow: 0 0 0 4px #2d3436, 0 0 0 8px #111, 0 25px 60px rgba(0,0,0,0.6);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        /* Efekt scanlini jak na CRT z ery Segi */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg,
+                rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 2px,
+                transparent 2px, transparent 4px);
+            pointer-events: none;
+            z-index: 2;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(16, 20, 58, 0.92);
+            transition: opacity 0.3s ease;
+            z-index: 3;
+            text-align: center;
+            padding: 10px;
+        }
+        .hidden { opacity: 0; pointer-events: none; }
+        h1 {
+            font-size: clamp(1.4rem, 5.5vw, 2.6rem);
+            margin: 0 0 6px 0;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            font-weight: bold;
+            color: #ffd93b;
+            text-shadow: 2px 2px 0 #e17055, 4px 4px 0 #d63031, 6px 6px 0 rgba(0,0,0,0.5);
+        }
+        .ribbon {
+            color: #70a1ff;
+            letter-spacing: 8px;
+            font-size: clamp(0.6rem, 2.2vw, 0.85rem);
+            margin-bottom: 18px;
+        }
+        .versus { font-size: clamp(1rem, 4vw, 1.3rem); margin: 0 0 8px 0; letter-spacing: 2px; }
+        .versus .p1 { color: #c88a4a; text-shadow: 2px 2px 0 #000; }
+        .versus .p2 { color: #eec27f; text-shadow: 2px 2px 0 #000; }
+        p.desc {
+            font-size: clamp(0.75rem, 2.6vw, 0.95rem);
+            color: #b2bec3;
+            margin: 0 0 24px 0;
+            line-height: 1.7;
+            padding: 0 10px;
+        }
+        .btn {
+            padding: 12px 40px;
+            font-size: clamp(0.95rem, 3.5vw, 1.2rem);
+            font-weight: bold;
+            font-family: inherit;
+            letter-spacing: 3px;
+            color: #fff;
+            background: #d63031;
+            border: 3px solid #ffd93b;
+            border-radius: 2px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #7a1616, 0 10px 18px rgba(0,0,0,0.5);
+            transition: transform 0.05s, box-shadow 0.05s;
+            touch-action: manipulation;
+        }
+        .btn:hover { filter: brightness(1.15); }
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #7a1616;
+        }
+        .hint {
+            margin-top: 22px;
+            font-size: clamp(0.6rem, 2.2vw, 0.8rem);
+            color: #8395a7;
+            letter-spacing: 2px;
+            line-height: 1.8;
+        }
+        .blink { animation: blink 1.2s steps(1) infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* ---------- STEROWANIE DOTYKOWE (iPhone / tablet) ---------- */
+        #touch-controls {
+            display: none;
+            width: min(96vw, 800px, calc((100vh - 150px) * 1.6));
+            width: min(96vw, 800px, calc((100dvh - 150px) * 1.6));
+            margin-top: 12px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        @media (pointer: coarse) { #touch-controls { display: flex; } }
+        .pad-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .pad-label { font-size: 0.65rem; letter-spacing: 3px; font-weight: bold; }
+        .pad-label.bruno { color: #c88a4a; }
+        .pad-label.gustav { color: #eec27f; }
+        .pad { display: flex; flex-direction: column; gap: 8px; }
+        .touch-btn {
+            width: 48px; height: 48px;
+            font-size: 20px;
+            line-height: 1;
+            color: #fff;
+            font-family: inherit;
+            font-weight: bold;
+            background: #2d3436;
+            border: 3px solid #57606f;
+            border-radius: 8px;
+            box-shadow: 0 4px 0 #14181a;
+            cursor: pointer;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            padding: 0;
+        }
+        .touch-btn.active {
+            background: #d63031;
+            border-color: #ffd93b;
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #7a1616;
+        }
+        .mid-btns { display: flex; flex-direction: column; gap: 6px; }
+        #pauseBtn, #musicBtn {
+            width: 44px; height: 44px;
+            font-size: 15px;
+            background: #1e272e;
+            border-color: #ffd93b;
+        }
+        #pauseBtn.active { background: #2d3436; }
+        /* Ekran "obróć telefon" – na iPhone gra działa tylko w poziomie */
+        #rotate-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: linear-gradient(160deg, #10142e 0%, #1a0f2e 60%, #0d0f1a 100%);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            text-align: center;
+            padding: 20px;
+        }
+        #rotate-overlay .phone {
+            font-size: 4rem;
+            animation: rotPhone 1.8s ease-in-out infinite;
+        }
+        @keyframes rotPhone {
+            0%, 15% { transform: rotate(0deg); }
+            50%, 85% { transform: rotate(-90deg); }
+            100% { transform: rotate(0deg); }
+        }
+        #rotate-overlay p {
+            margin: 0;
+            color: #ffd93b;
+            letter-spacing: 3px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        #rotate-overlay span { color: #8395a7; font-size: 0.8rem; letter-spacing: 2px; }
+        /* Nakładka pokazywana też z JS (media queries zawodzą wewnątrz iframe'ów, np. CodePen) */
+        #rotate-overlay.show { display: flex; }
+        body.portrait-lock #game-container,
+        body.portrait-lock #touch-controls { display: none; }
+        @media (orientation: portrait) and (pointer: coarse) {
+            #game-container, #touch-controls { display: none !important; }
+            #rotate-overlay { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="pongCanvas" width="400" height="250"></canvas>
+    <div class="scanlines"></div>
+
+    <!-- Ekran startowy / Koniec gry -->
+    <div id="uiScreen" class="ui-layer">
+        <h1 id="screenTitle">PSIA DOGRYWKA</h1>
+        <div class="ribbon">★ 16-BIT MEGA DRIVE EDITION ★</div>
+        <p class="versus"><span class="p1">BRUNO</span> vs <span class="p2">GUSTAV</span></p>
+        <p class="desc" id="screenDesc">
+            Jamnik szorstkowłosy BRUNO kontra gryfonik brukselski GUSTAV.<br>
+            Na środku pokoju frunie kurczak &ndash; nie daj mu spaść! Gra do 10 punktów.
+        </p>
+        <button class="btn" id="startBtn">&#9654; START</button>
+        <p class="hint blink">W / S &mdash; BRUNO &nbsp;&middot;&nbsp; &uarr; / &darr; &mdash; GUSTAV &nbsp;&middot;&nbsp; P &mdash; PAUZA &nbsp;&middot;&nbsp; M &mdash; MUZYKA</p>
+    </div>
+</div>
+
+<!-- Przyciski dotykowe (widoczne na urządzeniach z dotykiem) -->
+<div id="touch-controls">
+    <div class="pad-wrap">
+        <div class="pad-label bruno">BRUNO</div>
+        <div class="pad">
+            <button class="touch-btn" data-key="KeyW">&#9650;</button>
+            <button class="touch-btn" data-key="KeyS">&#9660;</button>
+        </div>
+    </div>
+    <div class="mid-btns">
+        <button class="touch-btn" id="musicBtn">&#9834;</button>
+        <button class="touch-btn" id="pauseBtn">&#10074;&#10074;</button>
+    </div>
+    <div class="pad-wrap">
+        <div class="pad-label gustav">GUSTAV</div>
+        <div class="pad">
+            <button class="touch-btn" data-key="ArrowUp">&#9650;</button>
+            <button class="touch-btn" data-key="ArrowDown">&#9660;</button>
+        </div>
+    </div>
+</div>
+
+<!-- Na iPhonie w pionie: prośba o obrót (gra działa poziomo jak na komputerze) -->
+<div id="rotate-overlay">
+    <div class="phone">&#128241;</div>
+    <p>OBRÓĆ TELEFON</p>
+    <span>Psia Dogrywka działa w poziomie &ndash; jak na komputerze!</span>
+</div>
+
+<script>
+/* ============================================================
+   PSIA DOGRYWKA 16-BIT
+   BRUNO (jamnik szorstkowłosy) vs GUSTAV (gryfonik brukselski)
+   Piłka: kurczak. Muzyka: chiptune'owy walczyk (Web Audio).
+   Pokój: TV "HVNLAB", kucharz z garnkiem, dwie dziewczyny, kot.
+   ============================================================ */
+
+const canvas = document.getElementById("pongCanvas");
+const ctx = canvas.getContext("2d");
+const uiScreen = document.getElementById("uiScreen");
+const screenTitle = document.getElementById("screenTitle");
+const screenDesc = document.getElementById("screenDesc");
+const startBtn = document.getElementById("startBtn");
+const pauseBtn = document.getElementById("pauseBtn");
+
+const W = canvas.width, H = canvas.height;
+const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+
+// Stan gry
+let gameRunning = false;
+let paused = false;
+let tick = 0;
+let whistleT = -999;   // moment gwizdka sędziego (TRELE! po każdym punkcie)
+let score = { bruno: 0, gustav: 0 };
+const maxScore = 10;
+
+/* ---------- KLAWIATURA (e.code = odporność na Caps Lock) ---------- */
+const keys = {};
+window.addEventListener("keydown", e => {
+    if (["ArrowUp", "ArrowDown", "Space"].includes(e.code)) e.preventDefault();
+    keys[e.code] = true;
+    if (e.code === "KeyM") toggleMusic();
+    if (e.code === "KeyP") togglePause();
+    if ((e.code === "Enter" || e.code === "Space") && !gameRunning) startBtn.click();
+});
+window.addEventListener("keyup", e => keys[e.code] = false);
+
+/* ---------- STEROWANIE DOTYKOWE ---------- */
+document.querySelectorAll(".touch-btn[data-key]").forEach(btn => {
+    const code = btn.dataset.key;
+    const press = e => { e.preventDefault(); keys[code] = true; btn.classList.add("active"); };
+    const release = e => { keys[code] = false; btn.classList.remove("active"); };
+    btn.addEventListener("pointerdown", press);
+    btn.addEventListener("pointerup", release);
+    btn.addEventListener("pointercancel", release);
+    btn.addEventListener("pointerleave", release);
+    btn.addEventListener("contextmenu", e => e.preventDefault());
+});
+
+/* iOS: AudioContext lubi zostać wybudowany przez dotyk */
+window.addEventListener("pointerdown", () => {
+    if (AC && AC.state === "suspended") AC.resume();
+}, { passive: true });
+
+/* Blokada pozioma na telefonach – wykrywana w JS. Uwaga: media queries i wymiary okna (innerWidth/innerHeight)
+   wewnątrz iframe'a (np. podgląd CodePen na iPhonie) opisują IFRAME, nie telefon. Dlatego najpierw sprawdzamy
+   window.orientation / screen.orientation, które odpowiadają FIZYCZNEMU obrotowi urządzenia. */
+const rotateOverlay = document.getElementById("rotate-overlay");
+function isDevicePortrait() {
+    if (screen.orientation && screen.orientation.type)
+        return screen.orientation.type.indexOf("portrait") !== -1;
+    if (typeof window.orientation !== "undefined")      // starsze wersje iOS Safari
+        return Math.abs(window.orientation) !== 90;
+    return window.innerHeight > window.innerWidth;      // fallback: wymiary okna
+}
+function checkOrientation() {
+    const isTouch = (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
+    const lock = isTouch && isDevicePortrait();
+    rotateOverlay.classList.toggle("show", lock);
+    document.body.classList.toggle("portrait-lock", lock);
+}
+window.addEventListener("resize", checkOrientation);
+window.addEventListener("orientationchange", () => setTimeout(checkOrientation, 150));
+checkOrientation();
+
+/* ============================ AUDIO ============================ */
+let AC = null, masterGain, musicGain, sfxGain, musicOn = true, musicStarted = false;
+let nextBarTime = 0, barIndex = 0;
+const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+
+function initAudio() {
+    if (AC) return;
+    try {
+        AC = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = AC.createGain(); masterGain.gain.value = 0.85; masterGain.connect(AC.destination);
+        sfxGain = AC.createGain(); sfxGain.gain.value = 0.5; sfxGain.connect(masterGain);
+        musicGain = AC.createGain(); musicGain.gain.value = musicOn ? 0.2 : 0; musicGain.connect(masterGain);
+    } catch (err) { AC = null; }
+}
+
+function tone(f, t, dur, type, vol, fEnd) {
+    if (!AC) return;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || "square";
+    o.frequency.setValueAtTime(f, t);
+    if (fEnd) o.frequency.exponentialRampToValueAtTime(Math.max(1, fEnd), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + dur + 0.05);
+}
+
+/* Walczyk 3/4 – bas na "raz", akordy na "dwa-trzy", melodia u góry */
+const waltz = [
+    { b: 48, c: [64, 67], m: [[67, 1], [72, 1], [76, 1]] }, // C
+    { b: 43, c: [62, 67], m: [[74, 1], [71, 1], [67, 1]] }, // G7
+    { b: 45, c: [60, 64], m: [[72, 1], [76, 1], [81, 1]] }, // Am
+    { b: 43, c: [59, 62], m: [[77, 2], [74, 1]] },          // G7
+    { b: 41, c: [60, 65], m: [[69, 1], [72, 1], [77, 1]] }, // F
+    { b: 48, c: [64, 67], m: [[76, 1], [74, 1], [72, 1]] }, // C
+    { b: 43, c: [59, 62], m: [[71, 1], [74, 1], [77, 1]] }, // G7
+    { b: 48, c: [64, 67], m: [[72, 2], [0, 1]] }             // C
+];
+const BPM = 180, BEAT = 60 / BPM;
+
+function mTone(f, t, dur, type, vol) {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(musicGain);
+    o.start(t); o.stop(t + dur + 0.05);
+}
+
+function scheduleBar(t) {
+    const bar = waltz[barIndex % waltz.length];
+    mTone(mf(bar.b), t, BEAT * 0.95, "triangle", 0.55);              // "OOM"
+    mTone(mf(bar.c[0]), t + BEAT, BEAT * 0.4, "square", 0.10);      // "pah"
+    mTone(mf(bar.c[1]), t + BEAT, BEAT * 0.4, "square", 0.10);
+    mTone(mf(bar.c[0]), t + 2 * BEAT, BEAT * 0.4, "square", 0.10);   // "pah"
+    mTone(mf(bar.c[1]), t + 2 * BEAT, BEAT * 0.4, "square", 0.10);
+    let tb = t;
+    for (const [n, d] of bar.m) {                                    // melodia
+        if (n) mTone(mf(n), tb, d * BEAT * 0.9, "square", 0.22);
+        tb += d * BEAT;
+    }
+}
+
+function musicLoop() {
+    if (!AC) return;
+    while (nextBarTime < AC.currentTime + 0.35) {
+        scheduleBar(nextBarTime);
+        nextBarTime += 3 * BEAT;
+        barIndex++;
+    }
+    setTimeout(musicLoop, 120);
+}
+
+function startMusic() {
+    initAudio();
+    if (!AC || musicStarted) return;
+    AC.resume();
+    musicStarted = true;
+    nextBarTime = AC.currentTime + 0.15;
+    barIndex = 0;
+    musicLoop();
+}
+
+function toggleMusic() {
+    musicOn = !musicOn;
+    if (musicGain) musicGain.gain.value = musicOn ? 0.2 : 0;
+}
+
+/* Efekty dźwiękowe (chiptune) */
+function sfxPaddle(speed) {
+    if (!AC) return; const t = AC.currentTime;
+    const base = 500 + speed * 40;
+    tone(base, t, 0.06, "square", 0.35, base * 0.35);          // BWOK!
+    tone(base * 0.8, t + 0.07, 0.05, "square", 0.3, base * 0.3);
+}
+function sfxWall() {
+    if (!AC) return;
+    tone(300, AC.currentTime, 0.05, "triangle", 0.25, 170);   // "ko"
+}
+function sfxCluck() {
+    if (!AC) return;
+    tone(650, AC.currentTime, 0.05, "square", 0.10, 400);     // cichy kokaj
+}
+function sfxScore() {
+    if (!AC) return; const t = AC.currentTime;
+    tone(520, t, 0.10, "square", 0.35, 950);                  // bu-KAW!
+    tone(700, t + 0.11, 0.28, "square", 0.35, 160);
+}
+function sfxWhistle() {
+    if (!AC) return; const t = AC.currentTime;               // gwizdek sędziego!
+    for (let i = 0; i < 6; i++) tone(i % 2 ? 2450 : 2100, t + i * 0.06, 0.07, "square", 0.16);
+}
+function sfxWin() {
+    if (!AC) return; const t = AC.currentTime;
+    [72, 76, 79, 84].forEach((n, i) => tone(mf(n), t + i * 0.13, 0.16, "square", 0.3));
+}
+function sfxStart() {
+    if (!AC) return; const t = AC.currentTime;
+    [60, 64, 67, 72].forEach((n, i) => tone(mf(n), t + i * 0.07, 0.1, "square", 0.25));
+}
+
+/* ======================= TŁO (POKÓJ) ======================= */
+const bg = document.createElement("canvas");
+bg.width = W; bg.height = H;
+const bx = bg.getContext("2d");
+const bpx = (x, y, w, h, c) => { bx.fillStyle = c; bx.fillRect(x, y, w, h); };
+
+const winL = { x: 62, y: 44, w: 70, h: 58 };
+const winR = { x: 268, y: 44, w: 70, h: 58 };
+
+function buildBG() {
+    // Tapeta
+    bpx(0, 0, W, 214, "#b89d78");
+    for (let x = 0; x < W; x += 16) bpx(x, 0, 6, 214, "#c3a986");
+    for (let y = 10; y < 214; y += 16)
+        for (let x = 10; x < W; x += 16)
+            bpx(x + ((y / 16) % 2) * 8, y, 2, 2, "#a3855f");
+    // Listwa przypodłogowa
+    bpx(0, 196, W, 4, "#8f5a30");
+    bpx(0, 200, W, 11, "#7a4a26");
+    bpx(0, 211, W, 3, "#5d3619");
+    // Szyki parkietu w szachownicę (pozdrowienia od Sonic teamu)
+    for (let r = 0; r < 3; r++)
+        for (let c = 0; c < 34; c++)
+            bpx(c * 12, 214 + r * 12, 12, 12, ((c + r) % 2) ? "#8a5a2b" : "#6e4520");
+    // Okna: rama + parapet (wnętrze rysowane dynamicznie – chmurki!)
+    [winL, winR].forEach(win => {
+        bpx(win.x - 4, win.y - 4, win.w + 8, win.h + 8, "#f2e8d0");
+        bpx(win.x - 4, win.y - 4, win.w + 8, 2, "#d9cdb2");
+        bpx(win.x - 4, win.y + win.h + 4, win.w + 8, 2, "#d9cdb2");
+        bpx(win.x - 8, win.y + win.h, win.w + 16, 7, "#efe3c8"); // parapet
+        bpx(win.x - 8, win.y + win.h + 5, win.w + 16, 2, "#b3a487");
+    });
+    // Kwiatek na lewym parapecie
+    bpx(84, 83, 12, 7, "#c0603a");  // doniczka
+    bpx(83, 81, 14, 3, "#a34d2c");  // rant
+    bpx(88, 74, 4, 8, "#3f8f3f");   // łodyga
+    bpx(85, 71, 4, 4, "#57b257"); bpx(91, 71, 4, 4, "#57b257"); // liście
+    bpx(88, 68, 5, 4, "#e056a0");  // kwiatek
+    bpx(89, 69, 2, 2, "#ffd93b");
+}
+buildBG();
+
+// Chmurki za oknami
+function drawWindow(win, t) {
+    px(win.x, win.y, win.w, win.h, "#aee3ff");
+    ctx.save();
+    ctx.beginPath(); ctx.rect(win.x, win.y, win.w, win.h); ctx.clip();
+    const cw = 14;
+    const cx1 = win.x + ((t * 0.25 + win.x) % (win.w + 30)) - 15;
+    const cx2 = win.x + ((t * 0.12 + win.x * 2 + 40) % (win.w + 30)) - 15;
+    px(cx1, win.y + 8, cw, 5, "#ffffff");
+    px(cx1 + 3, win.y + 5, 8, 3, "#ffffff");
+    px(cx2, win.y + 34, 12, 4, "#ffffff");
+    px(cx2 + 2, win.y + 31, 7, 3, "#ffffff");
+    // słońce w prawym oknie
+    if (win === winR) { px(win.x + 52, win.y + 6, 7, 7, "#ffe17a"); px(win.x + 54, win.y + 4, 3, 11, "#ffe17a"); px(win.x + 50, win.y + 8, 11, 3, "#ffe17a"); }
+    ctx.restore();
+    // szprosy
+    px(win.x + win.w / 2 - 2, win.y, 4, win.h, "#f2e8d0");
+    px(win.x, win.y + win.h / 2 - 2, win.w, 4, "#f2e8d0");
+}
+
+/* Telewizor retro z mrugającym napisem HVNLAB (zamiast obrazka) */
+function drawTV(t) {
+    const tx = 174, ty = 46;
+    // antena "uszy"
+    px(tx + 18, ty - 8, 2, 5, "#8395a7");
+    px(tx + 12, ty - 13, 2, 2, "#8395a7"); px(tx + 14, ty - 11, 2, 2, "#8395a7"); px(tx + 16, ty - 9, 2, 2, "#8395a7");
+    px(tx + 26, ty - 13, 2, 2, "#8395a7"); px(tx + 24, ty - 11, 2, 2, "#8395a7"); px(tx + 22, ty - 9, 2, 2, "#8395a7");
+    // obudowa drewniana
+    px(tx, ty, 52, 36, "#6e4520");
+    px(tx, ty, 52, 2, "#8a5a2b");
+    px(tx, ty + 34, 52, 2, "#54351a");
+    px(tx + 3, ty + 3, 46, 30, "#2d1d10");
+    // ekran
+    px(tx + 5, ty + 5, 42, 24, "#0a1410");
+    // mrugający retro napis HVNLAB
+    const on = (t % 64) < 50;
+    if (on) {
+        ctx.textAlign = "center";
+        ctx.font = "bold 10px 'Courier New', monospace";
+        ctx.fillStyle = (t % 8 < 4) ? "#7dffb0" : "#3fff6a"; // migotanie fosforu
+        ctx.fillText("HVNLAB", tx + 26, ty + 20);
+    }
+    // retro szum na ekranie
+    for (let i = 0; i < 3; i++)
+        px(tx + 6 + Math.random() * 40, ty + 6 + Math.random() * 22, 1, 1, "rgba(255,255,255,0.2)");
+    // scanline na ekranie
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    for (let y = ty + 6; y < ty + 29; y += 3) ctx.fillRect(tx + 5, y, 42, 1);
+    // pokrętła i uchwyt ścienny
+    px(tx + 44, ty + 33, 3, 3, "#c9bfa5");
+    px(tx + 38, ty + 33, 3, 3, "#8395a7");
+    px(tx + 24, ty + 36, 4, 3, "#54351a");
+}
+
+/* Grubszy facet przy stole – miesza łyżką w garnku (para się unosi!). 100% większy! */
+function drawCook(t) {
+    const SKIN = "#f0c8a0", SHIRT = "#4a7a5a", HAIR = "#2d2d33";
+    // głowa (podwójnie większa)
+    px(187, 104, 26, 22, SKIN);
+    px(185, 102, 30, 7, HAIR);
+    px(183, 107, 6, 11, HAIR); px(212, 107, 6, 11, HAIR);
+    px(192, 113, 3, 3, "#111"); px(205, 113, 3, 3, "#111");
+    px(189, 120, 22, 11, "#4a3222");          // broda (zarośnięty kucharz!)
+    px(194, 120, 12, 3, "#5a382a");           // wąsy
+    px(196, 124, 8, 2, "#a05a4a");            // usta w brodzie
+    px(191, 129, 2, 5, "#4a3222"); px(207, 129, 2, 5, "#4a3222"); // kępy brody
+    // brzuch (grubszy facet, teraz podwójnie!)
+    px(174, 128, 52, 48, SHIRT);
+    px(170, 136, 8, 28, SHIRT); px(222, 136, 8, 28, SHIRT);
+    px(184, 134, 30, 36, "#e8e0d0");          // fartuch kuchenny
+    // lewa ręka (opuszczona)
+    px(164, 134, 9, 20, SHIRT); px(164, 154, 8, 7, SKIN);
+    // prawa ręka – miesza w garnku (dłoń krąży nad garnkiem)
+    const stir = t * 0.12;
+    const hx = 230 + Math.round(Math.cos(stir) * 6);
+    const hy = 148 + Math.round(Math.sin(stir) * 4);
+    px(220, 132, 12, 8, SHIRT);               // ramię
+    px(224, 138, 8, 8, SHIRT);                // przedramię
+    px(hx, hy, 6, 6, SKIN);                   // dłoń na łyżce
+    px(hx + 2, hy + 4, 4, 26, "#c9bfa5");     // trzon łyżki (wchodzi do garnka)
+    // nogi faceta
+    px(184, 176, 10, 44, "#4a4a55"); px(206, 176, 10, 44, "#4a4a55");
+    px(182, 220, 13, 6, "#2d2d33"); px(205, 220, 13, 6, "#2d2d33"); // buty
+    // STÓŁ (większy, prawie biały)
+    px(132, 188, 136, 10, "#eceae2");
+    px(132, 188, 136, 4, "#f7f5ee");
+    px(132, 196, 136, 2, "#c9c6bc");           // cień krawędzi
+    px(138, 198, 8, 28, "#d6d3c9");           // nogi stołu
+    px(254, 198, 8, 28, "#d6d3c9");
+    // GAREK na stole (podwójnie większy, granatowy)
+    px(212, 168, 44, 20, "#1f2a52");
+    px(210, 164, 48, 6, "#2e3d6e");           // rant
+    px(212, 168, 44, 3, "#3a4a85");           // błysk
+    px(203, 172, 6, 8, "#2e3d6e"); px(259, 172, 6, 8, "#2e3d6e"); // ucha
+    // PARA z garnka
+    for (let i = 0; i < 4; i++) {
+        const p = (t * 0.6 + i * 14) % 55;
+        ctx.globalAlpha = Math.max(0, 1 - p / 55) * 0.5;
+        px(222 + i * 7 + Math.round(Math.sin(p * 0.25 + i) * 4), 162 - p * 0.8, 4, 4, "#ffffff");
+    }
+    ctx.globalAlpha = 1;
+}
+
+/* Dziewczyny na szarej kanapie: gadająca i pisząca na telefonie. Obie 100% większe! */
+function drawGirls(t) {
+    const HAIR = "#1d1d24", SKIN = "#f0c8a0";
+
+    // ----- SZARA KANAPA (dwuosobowa) -----
+    px(274, 156, 112, 54, "#8a9099");          // oparcie
+    px(274, 156, 112, 3, "#9aa3ad");           // górna krawędź oparcia
+    px(266, 178, 12, 44, "#71767f");           // podłokietniki
+    px(382, 178, 12, 44, "#71767f");
+    px(274, 204, 112, 14, "#71767f");          // siedzisko
+    px(274, 204, 112, 3, "#8a9099");
+    px(276, 218, 6, 10, "#5d3619");            // nóżki
+    px(378, 218, 6, 10, "#5d3619");
+
+    // ----- Dziewczyna 1: gada (po lewej, patrzy w prawo) -----
+    const g1 = 300;
+    px(g1, 144, 24, 8, HAIR);                  // włosy
+    px(g1 - 2, 150, 7, 40, HAIR); px(g1 + 19, 150, 7, 40, HAIR); // długie czarne włosy
+    px(g1 + 3, 150, 18, 15, SKIN);             // twarz
+    px(g1 + 12, 156, 3, 3, "#111");            // oko (w stronę koleżanki)
+    const talk = (t % 30) < 15;
+    if (talk) px(g1 + 13, 164, 4, 4, "#a03a4a"); // otwarte usta – gada!
+    else px(g1 + 11, 165, 6, 2, "#a03a4a");
+    px(g1, 168, 24, 30, "#3aa0a0");            // sukienka turkusowa
+    px(g1 - 2, 196, 28, 6, "#2d2d33");         // kolana
+    px(g1, 202, 8, 22, "#2d2d33"); px(g1 + 16, 202, 8, 22, "#2d2d33"); // nogi
+    px(g1 - 2, 224, 10, 4, "#a04040"); px(g1 + 15, 224, 10, 4, "#a04040"); // buty
+    // dłoń gestykulująca w rytm gadania
+    if (talk) px(g1 + 26, 158, 5, 8, SKIN); else px(g1 + 26, 166, 5, 6, SKIN);
+    // bąbelek mowy
+    if (talk) {
+        px(326, 126, 22, 15, "#ffffff");
+        px(332, 140, 5, 5, "#ffffff");
+        const dots = ((t / 10) | 0) % 4;
+        ctx.fillStyle = "#555";
+        for (let d = 0; d <= dots && d < 3; d++) ctx.fillRect(331 + d * 5, 132, 3, 3);
+    }
+
+    // ----- Dziewczyna 2: pisze na telefonie (po prawej, patrzy w dół) -----
+    const g2 = 344;
+    px(g2, 144, 24, 8, HAIR);
+    px(g2 - 2, 150, 7, 40, HAIR); px(g2 + 19, 150, 7, 40, HAIR);
+    px(g2 + 3, 150, 18, 15, SKIN);
+    px(g2 + 7, 156, 3, 3, "#111");             // oko
+    px(g2 + 7, 165, 6, 2, "#a03a4a");           // usta (skupiona)
+    px(g2, 168, 24, 30, "#d4699e");            // sukienka różowa
+    px(g2 - 2, 196, 28, 6, "#2d2d33");
+    px(g2, 202, 8, 22, "#2d2d33"); px(g2 + 16, 202, 8, 22, "#2d2d33");
+    px(g2 - 2, 224, 10, 4, "#a04040"); px(g2 + 15, 224, 10, 4, "#a04040");
+    // telefon w dłoniach + poświata ekranu na twarzy
+    px(g2 + 9, 184, 10, 14, "#111111");       // telefon
+    ctx.globalAlpha = 0.35;
+    px(g2 + 7, 182, 14, 18, "#9fd0ff");        // blask
+    px(g2 + 4, 156, 18, 9, "#9fd0ff");         // ekran oświetla twarz
+    ctx.globalAlpha = 1;
+    px(g2 + 5, 180, 5, 6, SKIN); px(g2 + 18, 180, 5, 6, SKIN); // dłonie
+    // kciuk stuka w ekran
+    if ((t % 12) < 6) px(g2 + 13, 180, 4, 4, SKIN); else px(g2 + 11, 182, 4, 4, SKIN);
+}
+
+/* Sędzia psiej rozgrywki – łysy, z brodą, gwiżdże po każdym punkcie. Trochę większy, z okrągłą głową! */
+function drawReferee(t) {
+    const SKIN = "#f0c8a0", BEARD = "#4a3222";
+    // okrągła łysa głowa z połyskiem (zaokrąglony czubek i podbródek)
+    px(62, 115, 14, 3, SKIN);                 // czubek głowy
+    px(58, 118, 22, 13, SKIN);               // środek głowy
+    px(61, 131, 16, 4, SKIN);                // podbródek
+    px(61, 116, 8, 2, "#ffe0b8");            // błysk na łysinie
+    px(61, 120, 4, 2, "#6b4a30"); px(71, 120, 4, 2, "#6b4a30");  // brwi
+    px(62, 123, 3, 3, "#111"); px(72, 123, 3, 3, "#111");        // oczy
+    // broda
+    px(55, 132, 26, 11, BEARD);
+    px(58, 143, 20, 3, BEARD);
+    px(52, 134, 4, 6, BEARD); px(80, 134, 4, 6, BEARD);          // kępy
+    // koszulka sędziego – czarno-białe pasy
+    px(51, 138, 34, 41, "#2d2d33");
+    for (let x = 53; x < 83; x += 7) px(x, 138, 3, 41, "#e8e8ee");
+    px(61, 136, 14, 3, "#e8e8ee");             // kołnierz
+    // lewa ręka (opuszczona)
+    px(43, 141, 9, 17, "#2d2d33"); px(43, 158, 8, 6, SKIN);
+    // prawa ręka – gwizdek przy brodzie
+    px(83, 141, 7, 9, "#2d2d33");
+    px(77, 136, 9, 6, SKIN);
+    px(70, 132, 7, 7, SKIN);                  // dłoń
+    px(67, 134, 7, 5, "#c9d0d8");             // gwizdek
+    // nogawki i buty
+    px(56, 179, 10, 45, "#2d2d33"); px(71, 179, 10, 45, "#2d2d33");
+    px(54, 220, 13, 6, "#111"); px(70, 220, 13, 6, "#111");
+    // TRELE! – fale dźwięku po zdobyciu punktu
+    const blow = (t - whistleT) >= 0 && (t - whistleT) < 45;
+    if (blow) {
+        const ph = t - whistleT;
+        ctx.globalAlpha = Math.max(0, 1 - ph / 45);
+        px(83, 132, 3, 3, "#ffd93b");
+        px(88, 129, 3, 3, "#ffd93b");
+        px(93, 126, 4, 4, "#ffd93b");
+        px(85, 139, 2, 2, "#ffd93b");
+        px(90, 137, 2, 2, "#ffd93b");
+        ctx.globalAlpha = 1;
+        px(86, 108, 26, 13, "#2d2d33");         // obwódka bąbelka
+        px(87, 109, 24, 11, "#ffffff");
+        ctx.textAlign = "center";
+        ctx.font = "bold 7px 'Courier New', monospace";
+        ctx.fillStyle = "#d63031";
+        ctx.fillText("TRELE!", 99, 118);
+    }
+}
+
+/* Kot na prawym parapecie – patrzy na kurczaka! */
+function drawCat(t) {
+    const sillTop = 102, cx0 = 292;
+    const look = Math.max(-3, Math.min(3, (ball.x - 300) / 30));
+    const lookY = Math.max(-2, Math.min(2, (ball.y - 80) / 30));
+    const C = "#2b2b33", WH = "#e8e8ee";
+    const sway = Math.sin(t * 0.07);
+    // ogon
+    px(cx0 + 11, sillTop - 9, 3, 9, C);
+    px(cx0 + 13 + Math.round(sway * 2), sillTop - 15, 3, 7, C);
+    px(cx0 + 14 + Math.round(sway * 3), sillTop - 20, 2, 6, C);
+    // tułów i łapki
+    px(cx0, sillTop - 17, 12, 17, C);
+    px(cx0 + 2, sillTop - 10, 4, 10, WH);
+    px(cx0 - 1, sillTop - 2, 3, 2, WH); px(cx0 + 6, sillTop - 2, 3, 2, WH);
+    // głowa (śledzi kurczaka)
+    const hx = cx0 + 2 + Math.round(look), hy = sillTop - 21 + Math.round(lookY);
+    px(hx, hy, 11, 10, C);
+    px(hx + 1, hy - 3, 3, 3, C); px(hx + 7, hy - 3, 3, 3, C);          // uszy
+    px(hx + 2, hy - 2, 1, 1, "#d4668f"); px(hx + 8, hy - 2, 1, 1, "#d4668f");
+    const blink = ((t / 30) % 220) < 6;
+    if (!blink) {
+        px(hx + 2, hy + 3, 3, 3, "#7fe07f"); px(hx + 6, hy + 3, 3, 3, "#7fe07f");
+        px(hx + 3, hy + 4, 1, 1, "#111"); px(hx + 7, hy + 4, 1, 1, "#111");
+    } else {
+        px(hx + 2, hy + 4, 3, 1, "#111"); px(hx + 6, hy + 4, 3, 1, "#111");
+    }
+    px(hx + 4, hy + 6, 3, 1, "#d4668f");                               // nosek
+    px(hx - 2, hy + 5, 2, 1, "#999"); px(hx - 3, hy + 7, 3, 1, "#999"); // wąsy
+    px(hx + 11, hy + 5, 2, 1, "#999"); px(hx + 11, hy + 7, 3, 1, "#999");
+}
+
+/* ======================= ZAWODNICY ======================= */
+class DogPaddle {
+    constructor(x, type) {
+        this.x = x; this.y = H / 2 - 32;
+        this.width = 16; this.height = 64;
+        this.type = type; this.speed = 4;
+    }
+    update(upKey, downKey) {
+        if (keys[upKey] && this.y > 6) this.y -= this.speed;
+        if (keys[downKey] && this.y < H - this.height - 6) this.y += this.speed;
+    }
+    draw(t) {
+        const X = Math.round(this.x), Y = Math.round(this.y);
+        const P = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(X + x, Y + y, w, h); };
+        if (this.type === "bruno") drawBruno(P, t); else drawGustav(P, t);
+    }
+}
+
+/* BRUNO – jamnik szorstkowłosy CZARNO-BRĄZOWY: czarna sierść, brązowy pysk, łapki i plamki nad oczami */
+function drawBruno(P, t) {
+    const BLACK = "#2b2b33", TANP = "#c88a4a", ROUGH = "#45454f", BEARD = "#4a2c10";
+    P(0, 3, 4, 12, "#1d1d24"); P(1, 5, 2, 8, "#3a3a44"); // oklapnięte ucho (czarne)
+    P(3, 0, 11, 13, BLACK); P(13, 6, 4, 6, TANP);        // głowa + brązowy pysk
+    P(2, 0, 3, 3, "#1d1d24");                             // czubek ucha
+    P(8, 2, 5, 3, TANP);                                   // brązowe plamki nad oczami
+    P(10, 5, 2, 2, "#111"); P(11, 5, 1, 1, "#fff");        // oko
+    P(12, 9, 1, 2, BEARD);                                 // wąsik
+    P(15, 7, 2, 2, "#111");                                // nosek
+    P(13, 12, 2, 1, BEARD); P(14, 13, 1, 2, BEARD); P(11, 12, 1, 1, BEARD); P(12, 14, 1, 1, BEARD); // broda
+    P(3, 14, 10, 46, BLACK); P(7, 20, 5, 28, TANP);        // czarny tułów + brązowy brzuszek
+    P(3, 14, 10, 3, "#d8334a"); P(7, 17, 2, 3, "#ffd93b"); // kołnierz + zawieszka
+    [[4, 22], [9, 25], [5, 30], [10, 34], [4, 39], [9, 43], [6, 48], [9, 52], [4, 55]]
+        .forEach(([x, y]) => P(x, y, 2, 1, ROUGH));        // szorstka sierść
+    const wag = Math.round(Math.sin(t * 0.2) * 2);
+    P(12, 56, 4, 3, BLACK); P(15 + wag, 55, 3, 2, TANP);  // ogonek z brązowym końcem
+    P(3, 60, 8, 4, TANP); P(3, 63, 1, 1, "#fff"); P(7, 63, 1, 1, "#fff"); // brązowe łapki
+}
+
+/* GUSTAV – gryfonik brukselski: jaśniejsza ruda szorstka sierść, wielka broda, wybałuszone oczy */
+function drawGustav(P, t) {
+    const COAT = "#c98e50", DARKR = "#a06a33", BEARD = "#40200e";
+    P(2, 0, 2, 4, DARKR); P(12, 0, 2, 4, DARKR);          // szpiczaste uszy
+    P(2, 2, 1, 2, "#d4668f"); P(13, 2, 1, 1, "#d4668f");
+    P(1, 2, 14, 14, COAT);                                 // wielka głowa
+    P(3, 1, 2, 1, DARKR); P(7, 0, 2, 2, DARKR); P(11, 1, 1, 1, DARKR);
+    P(2, 4, 5, 2, BEARD); P(9, 4, 5, 2, BEARD);            // krzaczaste brwi
+    P(3, 7, 3, 3, "#fff"); P(10, 7, 3, 3, "#fff");        // wielkie oczy
+    P(4, 8, 2, 2, "#2a1408"); P(11, 8, 2, 2, "#2a1408");
+    P(4, 8, 1, 1, "#fff"); P(11, 8, 1, 1, "#fff");
+    P(0, 11, 4, 5, COAT); P(0, 11, 2, 2, "#111");          // zadarty pyszczek + nosek
+    P(0, 15, 8, 4, BEARD); P(1, 18, 6, 3, BEARD);          // wielka broda
+    P(8, 15, 1, 2, BEARD); P(0, 20, 2, 1, BEARD); P(4, 21, 2, 2, BEARD);
+    P(13, 13, 2, 3, DARKR);                                // szorstkie policzki
+    P(3, 22, 10, 36, COAT); P(7, 26, 5, 22, "#e8c288");    // krępy tułów + pierś
+    P(3, 22, 10, 3, "#2e86de"); P(7, 25, 2, 3, "#ffd93b"); // kołnierz
+    [[4, 28], [9, 31], [5, 36], [10, 40], [4, 45], [9, 49], [6, 53]]
+        .forEach(([x, y]) => P(x, y, 2, 1, DARKR));
+    const sway = Math.round(Math.sin(t * 0.2) * 1);
+    P(0, 54, 4, 3, COAT); P(0, 48 + sway, 3, 6, COAT);    // zawinięty ogonek
+    P(4, 58, 8, 4, "#b57a3e"); P(4, 61, 1, 1, "#fff"); P(8, 61, 1, 1, "#fff");
+}
+
+const bruno = new DogPaddle(12, "bruno");
+const gustav = new DogPaddle(W - 16 - 12, "gustav");
+
+/* ======================= KURCZAK (piłka) ======================= */
+class Chicken {
+    constructor() { this.reset(); }
+    reset() {
+        this.x = W / 2; this.y = H / 2;
+        this.radius = 7; this.speed = 2.4;
+        this.dx = (Math.random() > 0.5 ? 1 : -1) * this.speed;
+        this.dy = (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random() * 0.6) * this.speed;
+    }
+    update() {
+        this.x += this.dx; this.y += this.dy;
+        if (this.y - this.radius < 2) { this.y = this.radius + 2; this.dy *= -1; sfxWall(); feathers(this.x, this.y, 2); }
+        else if (this.y + this.radius > H - 2) { this.y = H - this.radius - 2; this.dy *= -1; sfxWall(); feathers(this.x, this.y, 2); }
+        if (Math.random() < 0.006) sfxCluck();   // kurczak czasem kokocze w locie
+    }
+    draw(t) {
+        const flap = ((t / 5) | 0) % 2;
+        ctx.save();
+        ctx.translate(Math.round(this.x), Math.round(this.y));
+        if (this.dx < 0) ctx.scale(-1, 1);
+        const P = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+        P(-8, -3, 3, 3, "#f5f5f0"); P(-9, -1, 2, 2, "#f5f5f0");          // ogonowe piórka
+        P(-6, -4, 12, 9, "#ffd93b"); P(-5, 2, 9, 3, "#ffe98a"); P(-6, 5, 12, 1, "#d4a017"); // tułów
+        P(0, -7, 8, 6, "#ffd93b");                                        // głowa
+        P(2, -9, 2, 2, "#e74c3c"); P(4, -8, 2, 1, "#e74c3c");             // grzebień
+        P(8, -4, 3, 2, "#f39c12"); P(7, -2, 2, 1, "#e08e0b");             // dziób
+        P(5, 0, 2, 2, "#e74c3c");                                          // dzwonko
+        P(4, -5, 2, 2, "#111");                                            // oko
+        if (flap === 0) { P(-4, 0, 7, 3, "#ffffff"); P(-4, 3, 6, 1, "#e0e0e0"); } // skrzydełko
+        else { P(-4, -2, 7, 3, "#ffffff"); P(-4, -3, 5, 1, "#e0e0e0"); }
+        P(-2, 5, 1, 3, "#f39c12"); P(1, 5, 1, 3, "#f39c12");              // nóżki
+        P(-3, 8, 3, 1, "#f39c12"); P(0, 8, 3, 1, "#f39c12");
+        ctx.restore();
+    }
+}
+const ball = new Chicken();
+
+/* ======================= PIÓRKA / EFEKTY ======================= */
+let particles = [];
+function feathers(x, y, n) {
+    const cols = ["#ffd93b", "#ffffff", "#ffe98a", "#ffb944"];
+    for (let i = 0; i < n; i++) {
+        particles.push({
+            x: x, y: y,
+            dx: (Math.random() - 0.5) * 3, dy: (Math.random() - 0.5) * 3 - 0.5,
+            size: Math.random() < 0.5 ? 2 : 3,
+            life: 1, color: cols[(Math.random() * cols.length) | 0]
+        });
+    }
+}
+
+/* ======================= KOLIZJE ======================= */
+function checkCollision(b, p) {
+    const overlapX = b.x + b.radius > p.x && b.x - b.radius < p.x + p.width;
+    const overlapY = b.y + b.radius > p.y && b.y - b.radius < p.y + p.height;
+    if (!overlapX || !overlapY) return;
+
+    const isLeft = p.type === "bruno";
+    const movingLeft = b.dx < 0;
+    if (movingLeft !== isLeft) return; // odbicie tylko od przedniej ścianki
+
+    const cp = Math.max(-1, Math.min(1, (b.y - (p.y + p.height / 2)) / (p.height / 2)));
+    const angle = (Math.PI / 3) * cp;
+    const dir = isLeft ? 1 : -1;
+
+    b.speed = Math.min(b.speed + 0.25, 7);
+    b.dx = dir * b.speed * Math.cos(angle);
+    b.dy = b.speed * Math.sin(angle);
+    b.x = isLeft ? p.x + p.width + b.radius : p.x - b.radius; // wypchnięcie
+
+    sfxPaddle(b.speed);
+    feathers(b.x, b.y, 8);
+}
+
+/* ======================= HUD ======================= */
+function text(x, y, s, c, size, bold) {
+    ctx.textAlign = "center";
+    ctx.font = (bold ? "bold " : "") + size + "px 'Courier New', monospace";
+    ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1);
+    ctx.fillStyle = c; ctx.fillText(s, x, y);
+}
+function drawHUD() {
+    text(100, 16, "BRUNO", "#c88a4a", 13, true);
+    text(300, 16, "GUSTAV", "#eec27f", 13, true);
+    text(200, 16, "\u2605 DO 10 \u2605", "#8395a7", 10, true);
+    text(100, 36, String(score.bruno), "#ffffff", 22, true);
+    text(300, 36, String(score.gustav), "#ffffff", 22, true);
+    text(200, 36, musicOn ? "\u266A WALCZYK: ON" : "\u266A WALCZYK: OFF", "#5f6c7b", 9, false);
+    // kropkowana linia środkowa
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    for (let y = 4; y < H - 4; y += 10) ctx.fillRect(W / 2 - 1, y, 2, 6);
+}
+
+/* ======================= PAUZA ======================= */
+function setPauseBtn() {
+    pauseBtn.innerHTML = paused ? "&#9654;" : "&#10074;&#10074;";
+}
+function togglePause() {
+    if (!gameRunning) return;
+    paused = !paused;
+    setPauseBtn();
+    if (AC && AC.state === "suspended") AC.resume();
+}
+pauseBtn.addEventListener("click", togglePause);
+pauseBtn.addEventListener("contextmenu", e => e.preventDefault());
+const musicBtn = document.getElementById("musicBtn");
+musicBtn.addEventListener("click", toggleMusic);
+musicBtn.addEventListener("contextmenu", e => e.preventDefault());
+// automatyczna pauza przy przełączeniu aplikacji / telefonie
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden && gameRunning && !paused) { paused = true; setPauseBtn(); }
+});
+
+function drawPauseBanner() {
+    ctx.fillStyle = "rgba(10,12,30,0.6)";
+    ctx.fillRect(0, H / 2 - 26, W, 52);
+    text(W / 2, H / 2 - 2, "PAUZA", "#ffd93b", 18, true);
+    text(W / 2, H / 2 + 16, "P LUB \u25B6 = WZN\u00D3W", "#8395a7", 8, false);
+}
+
+/* ======================= SCENA ======================= */
+function drawScene(t) {
+    ctx.drawImage(bg, 0, 0);
+    drawWindow(winL, t);
+    drawWindow(winR, t);
+    drawTV(t);
+    drawCook(t);
+    drawReferee(t);
+    drawGirls(t);
+    drawCat(t);
+    drawHUD();
+    // piórka
+    for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, p.life);
+        px(p.x, p.y, p.size, p.size, p.color);
+    }
+    ctx.globalAlpha = 1;
+    bruno.draw(t);
+    gustav.draw(t);
+    ball.draw(t);
+}
+
+/* ======================= PĘTLA GRY ======================= */
+function gameLoop() {
+    if (!gameRunning) return;
+    tick++;
+    if (!paused) {
+        ball.update();
+        bruno.update("KeyW", "KeyS");
+        gustav.update("ArrowUp", "ArrowDown");
+        checkCollision(ball, bruno);
+        checkCollision(ball, gustav);
+
+        // aktualizacja piórek (od tyłu, żeby splice nie gubił elementów)
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.dx; p.y += p.dy; p.dy += 0.12; p.life -= 0.025;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        // punkty (sędzia gwizdże!)
+        if (ball.x + ball.radius < -6) {
+            score.gustav++;
+            if (!checkGameOver()) { whistleT = tick; sfxWhistle(); sfxScore(); ball.reset(); }
+        } else if (ball.x - ball.radius > W + 6) {
+            score.bruno++;
+            if (!checkGameOver()) { whistleT = tick; sfxWhistle(); sfxScore(); ball.reset(); }
+        }
+    }
+    drawScene(tick);
+    if (paused) drawPauseBanner();
+    requestAnimationFrame(gameLoop);
+}
+
+function checkGameOver() {
+    if (score.bruno >= maxScore || score.gustav >= maxScore) {
+        gameRunning = false;
+        sfxWin();
+        uiScreen.classList.remove("hidden");
+        startBtn.innerHTML = "&#9654; JESZCZE RAZ";
+        if (score.bruno > score.gustav) {
+            screenTitle.innerText = "BRUNO WYGRYWA!";
+            screenDesc.innerHTML = `Wynik meczu: ${score.bruno} do ${score.gustav}.<br>Szczekaj\u0105cy puchar w\u0119druje do jamnika BRUNO!`;
+        } else {
+            screenTitle.innerText = "GUSTAV WYGRYWA!";
+            screenDesc.innerHTML = `Wynik meczu: ${score.gustav} do ${score.bruno}.<br>Gryfonik brukselski GUSTAV zdominowa\u0142 sal\u0119!`;
+        }
+        return true;
+    }
+    return false;
+}
+
+/* ======================= START ======================= */
+startBtn.addEventListener("click", () => {
+    uiScreen.classList.add("hidden");
+    startMusic();
+    sfxStart();
+    score = { bruno: 0, gustav: 0 };
+    particles.length = 0;
+    ball.reset();
+    bruno.y = H / 2 - 32; gustav.y = H / 2 - 32;
+    paused = false;
+    setPauseBtn();
+    gameRunning = true;
+    whistleT = tick;   // gwizdek sędziego na początek meczu!
+    drawScene(tick);
+    gameLoop();
+});
+
+// Pierwsza klatka w tle (pod przygaszonym menu)
+drawScene(0);
+</script>
+</body>
+</html>
