@@ -4,38 +4,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#10142e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Psia Dogrywka 16-BIT - BRUNO vs GUSTAV</title>
     <style>
         * { box-sizing: border-box; }
+        html, body { height: 100%; }
         body {
             margin: 0;
             background: linear-gradient(160deg, #10142e 0%, #1a0f2e 50%, #0d0f1a 100%);
             color: #fff;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
             min-height: 100dvh;
             padding: 10px;
+            padding-top: max(10px, env(safe-area-inset-top));
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
             padding-left: max(10px, env(safe-area-inset-left));
             padding-right: max(10px, env(safe-area-inset-right));
             overflow: hidden;
             overscroll-behavior: none;
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
         }
-        /* Canvas skaluje się tak, by zmieścić się na ekranie wraz z przyciskami dotykowymi */
+ 
+        /* Scena: [pad BRUNO] [gra] [pad GUSTAV] – jeden rząd, żeby w poziomie na iPhonie
+           cała wysokość ekranu szła na grę, a nie na przyciski pod spodem */
+        #stage {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+ 
         #game-container {
             position: relative;
-            width: min(96vw, 800px, calc((100vh - 150px) * 1.6));
-            width: min(96vw, 800px, calc((100dvh - 150px) * 1.6));
+            flex: 0 0 auto;
+            width: min(96vw, 800px, calc((100vh - 24px) * 1.6));
+            width: min(96vw, 800px, calc((100dvh - 24px) * 1.6));
             box-shadow: 0 0 0 4px #2d3436, 0 0 0 8px #111, 0 25px 60px rgba(0,0,0,0.6);
             border-radius: 4px;
             overflow: hidden;
+        }
+        /* Urządzenia dotykowe: odejmujemy miejsce na dwie kolumny przycisków i safe-area */
+        body.touch #game-container {
+            width: min(800px,
+                calc(100vw - 290px - env(safe-area-inset-left) - env(safe-area-inset-right)),
+                calc((100vh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 1.6));
+            width: min(800px,
+                calc(100vw - 290px - env(safe-area-inset-left) - env(safe-area-inset-right)),
+                calc((100dvh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 1.6));
         }
         canvas {
             display: block;
@@ -71,7 +98,7 @@
         }
         .hidden { opacity: 0; pointer-events: none; }
         h1 {
-            font-size: clamp(1.4rem, 5.5vw, 2.6rem);
+            font-size: clamp(1.1rem, 5.5vw, 2.6rem);
             margin: 0 0 6px 0;
             text-transform: uppercase;
             letter-spacing: 5px;
@@ -82,22 +109,22 @@
         .ribbon {
             color: #70a1ff;
             letter-spacing: 8px;
-            font-size: clamp(0.6rem, 2.2vw, 0.85rem);
-            margin-bottom: 18px;
+            font-size: clamp(0.5rem, 2.2vw, 0.85rem);
+            margin-bottom: 14px;
         }
-        .versus { font-size: clamp(1rem, 4vw, 1.3rem); margin: 0 0 8px 0; letter-spacing: 2px; }
+        .versus { font-size: clamp(0.85rem, 4vw, 1.3rem); margin: 0 0 8px 0; letter-spacing: 2px; }
         .versus .p1 { color: #c88a4a; text-shadow: 2px 2px 0 #000; }
         .versus .p2 { color: #eec27f; text-shadow: 2px 2px 0 #000; }
         p.desc {
-            font-size: clamp(0.75rem, 2.6vw, 0.95rem);
+            font-size: clamp(0.6rem, 2.4vw, 0.95rem);
             color: #b2bec3;
-            margin: 0 0 24px 0;
-            line-height: 1.7;
+            margin: 0 0 18px 0;
+            line-height: 1.6;
             padding: 0 10px;
         }
         .btn {
-            padding: 12px 40px;
-            font-size: clamp(0.95rem, 3.5vw, 1.2rem);
+            padding: 10px 34px;
+            font-size: clamp(0.8rem, 3.2vw, 1.2rem);
             font-weight: bold;
             font-family: inherit;
             letter-spacing: 3px;
@@ -109,6 +136,8 @@
             box-shadow: 0 6px 0 #7a1616, 0 10px 18px rgba(0,0,0,0.5);
             transition: transform 0.05s, box-shadow 0.05s;
             touch-action: manipulation;
+            -webkit-appearance: none;
+            appearance: none;
         }
         .btn:hover { filter: brightness(1.15); }
         .btn:active {
@@ -116,44 +145,51 @@
             box-shadow: 0 2px 0 #7a1616;
         }
         .hint {
-            margin-top: 22px;
-            font-size: clamp(0.6rem, 2.2vw, 0.8rem);
+            margin-top: 16px;
+            font-size: clamp(0.5rem, 2vw, 0.8rem);
             color: #8395a7;
             letter-spacing: 2px;
             line-height: 1.8;
         }
+        body.touch .hint { display: none; } /* na dotyku skróty klawiszowe nie mają sensu */
         .blink { animation: blink 1.2s steps(1) infinite; }
         @keyframes blink { 50% { opacity: 0; } }
-
+ 
         /* ---------- STEROWANIE DOTYKOWE (iPhone / tablet) ---------- */
-        #touch-controls {
-            display: none;
-            width: min(96vw, 800px, calc((100vh - 150px) * 1.6));
-            width: min(96vw, 800px, calc((100dvh - 150px) * 1.6));
-            margin-top: 12px;
+        .side {
+            display: none;                 /* włączane klasą body.touch z JS (media queries bywają zawodne w iframe) */
+            flex: 0 0 64px;
+            width: 64px;
+            align-self: stretch;          /* kolumna na wysokość planszy: strzałki na środku, pauza/muzyka przy dolnej krawędzi */
+            position: relative;
+            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
+            gap: 8px;
         }
-        @media (pointer: coarse) { #touch-controls { display: flex; } }
-        .pad-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .pad-label { font-size: 0.65rem; letter-spacing: 3px; font-weight: bold; }
+        body.touch .side { display: flex; }
+        .pad-label { font-size: 0.6rem; letter-spacing: 2px; font-weight: bold; }
         .pad-label.bruno { color: #c88a4a; }
         .pad-label.gustav { color: #eec27f; }
-        .pad { display: flex; flex-direction: column; gap: 8px; }
         .touch-btn {
-            width: 48px; height: 48px;
-            font-size: 20px;
+            width: 56px; height: 56px;
+            font-size: 22px;
             line-height: 1;
             color: #fff;
             font-family: inherit;
             font-weight: bold;
             background: #2d3436;
             border: 3px solid #57606f;
-            border-radius: 8px;
+            border-radius: 10px;
             box-shadow: 0 4px 0 #14181a;
             cursor: pointer;
             touch-action: none;
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-appearance: none;
+            appearance: none;
             padding: 0;
         }
         .touch-btn.active {
@@ -162,15 +198,23 @@
             transform: translateY(3px);
             box-shadow: 0 1px 0 #7a1616;
         }
-        .mid-btns { display: flex; flex-direction: column; gap: 6px; }
         #pauseBtn, #musicBtn {
-            width: 44px; height: 44px;
+            width: 42px; height: 42px;
             font-size: 15px;
             background: #1e272e;
             border-color: #ffd93b;
+            position: absolute;            /* wyjęte z układu kolumny – strzałki zostają na środku */
+            bottom: 0;
+            margin: 0;
+            opacity: 0.85;
         }
+        /* Muzyka: na zewnątrz lewej kolumny. Pauza: na zewnątrz prawej kolumny.
+           Dzięki temu są odsunięte W POZIOMIE od strzałek i nie da się ich trafić przy sterowaniu. */
+        #musicBtn { right: calc(100% + 14px); }
+        #pauseBtn { left: calc(100% + 14px); }
         #pauseBtn.active { background: #2d3436; }
-        /* Ekran "obróć telefon" – na iPhone gra działa tylko w poziomie */
+ 
+        /* Ekran "obróć telefon" – na telefonie w pionie (włączany wyłącznie z JS) */
         #rotate-overlay {
             display: none;
             position: fixed;
@@ -201,65 +245,84 @@
             font-size: 1.2rem;
         }
         #rotate-overlay span { color: #8395a7; font-size: 0.8rem; letter-spacing: 2px; }
-        /* Nakładka pokazywana też z JS (media queries zawodzą wewnątrz iframe'ów, np. CodePen) */
         #rotate-overlay.show { display: flex; }
-        body.portrait-lock #game-container,
-        body.portrait-lock #touch-controls { display: none; }
-        @media (orientation: portrait) and (pointer: coarse) {
-            #game-container, #touch-controls { display: none !important; }
-            #rotate-overlay { display: flex; }
+        body.portrait-lock #stage { display: none; }
+        /* UWAGA: celowo NIE ma tu już reguły @media (orientation: portrait) z !important –
+           ukrywała grę na iPhonie nawet w poziomie. Decyzję podejmuje wyłącznie JS. */
+ 
+        /* ---- Menu skaluje się razem z PLANSZĄ (zmienna --s ustawiana z JS = szerokość planszy / 800) ----
+           Wcześniej rozmiary tekstu zależały od szerokości ekranu, więc na małej planszy
+           (iPhone, mały podgląd CodePen) menu się nie mieściło i przycisk START był ucięty. */
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* iOS w poziomie sam powiększa tekst */
+        #game-container { --s: 0.5; }
+        .ui-layer { padding: calc(var(--s) * 10px); overflow: hidden; }
+        h1 {
+            font-size: calc(var(--s) * 42px);
+            margin: 0 0 calc(var(--s) * 6px) 0;
+            letter-spacing: calc(var(--s) * 5px);
+            line-height: 1.1;
+            text-shadow: calc(var(--s) * 2px) calc(var(--s) * 2px) 0 #e17055,
+                         calc(var(--s) * 4px) calc(var(--s) * 4px) 0 #d63031,
+                         calc(var(--s) * 6px) calc(var(--s) * 6px) 0 rgba(0,0,0,0.5);
         }
+        .ribbon { font-size: calc(var(--s) * 14px); letter-spacing: calc(var(--s) * 8px); margin-bottom: calc(var(--s) * 16px); }
+        .versus { font-size: calc(var(--s) * 22px); letter-spacing: calc(var(--s) * 2px); margin: 0 0 calc(var(--s) * 8px) 0; }
+        p.desc { font-size: calc(var(--s) * 15px); line-height: 1.5; margin: 0 0 calc(var(--s) * 20px) 0; padding: 0 calc(var(--s) * 10px); }
+        .btn {
+            font-size: calc(var(--s) * 20px);
+            padding: calc(var(--s) * 10px) calc(var(--s) * 36px);
+            letter-spacing: calc(var(--s) * 3px);
+            border-width: max(2px, calc(var(--s) * 3px));
+            box-shadow: 0 calc(var(--s) * 6px) 0 #7a1616, 0 calc(var(--s) * 10px) calc(var(--s) * 18px) rgba(0,0,0,0.5);
+        }
+        .hint { font-size: calc(var(--s) * 12px); letter-spacing: calc(var(--s) * 2px); margin-top: calc(var(--s) * 16px); }
     </style>
 </head>
 <body>
-
-<div id="game-container">
-    <canvas id="pongCanvas" width="400" height="250"></canvas>
-    <div class="scanlines"></div>
-
-    <!-- Ekran startowy / Koniec gry -->
-    <div id="uiScreen" class="ui-layer">
-        <h1 id="screenTitle">PSIA DOGRYWKA</h1>
-        <div class="ribbon">★ 16-BIT MEGA DRIVE EDITION ★</div>
-        <p class="versus"><span class="p1">BRUNO</span> vs <span class="p2">GUSTAV</span></p>
-        <p class="desc" id="screenDesc">
-            Jamnik szorstkowłosy BRUNO kontra gryfonik brukselski GUSTAV.<br>
-            Na środku pokoju frunie kurczak &ndash; nie daj mu spaść! Gra do 10 punktów.
-        </p>
-        <button class="btn" id="startBtn">&#9654; START</button>
-        <p class="hint blink">W / S &mdash; BRUNO &nbsp;&middot;&nbsp; &uarr; / &darr; &mdash; GUSTAV &nbsp;&middot;&nbsp; P &mdash; PAUZA &nbsp;&middot;&nbsp; M &mdash; MUZYKA</p>
-    </div>
-</div>
-
-<!-- Przyciski dotykowe (widoczne na urządzeniach z dotykiem) -->
-<div id="touch-controls">
-    <div class="pad-wrap">
+ 
+<div id="stage">
+    <!-- Lewa kolumna: BRUNO + muzyka -->
+    <div class="side">
         <div class="pad-label bruno">BRUNO</div>
-        <div class="pad">
-            <button class="touch-btn" data-key="KeyW">&#9650;</button>
-            <button class="touch-btn" data-key="KeyS">&#9660;</button>
+        <button class="touch-btn" data-key="KeyW" aria-label="Bruno w górę">&#9650;</button>
+        <button class="touch-btn" data-key="KeyS" aria-label="Bruno w dół">&#9660;</button>
+        <button class="touch-btn" id="musicBtn" aria-label="Muzyka">&#9834;</button>
+    </div>
+ 
+    <div id="game-container">
+        <canvas id="pongCanvas" width="400" height="250"></canvas>
+        <div class="scanlines"></div>
+ 
+        <!-- Ekran startowy / Koniec gry -->
+        <div id="uiScreen" class="ui-layer">
+            <h1 id="screenTitle">PSIA DOGRYWKA</h1>
+            <div class="ribbon">★ 16-BIT MEGA DRIVE EDITION ★</div>
+            <p class="versus"><span class="p1">BRUNO</span> vs <span class="p2">GUSTAV</span></p>
+            <p class="desc" id="screenDesc">
+                Jamnik szorstkowłosy BRUNO kontra gryfonik brukselski GUSTAV.<br>
+                Na środku pokoju frunie kurczak &ndash; nie daj mu spaść! Gra do 10 punktów.
+            </p>
+            <button class="btn" id="startBtn">&#9654; START</button>
+            <p class="hint blink">W / S &mdash; BRUNO &nbsp;&middot;&nbsp; &uarr; / &darr; &mdash; GUSTAV &nbsp;&middot;&nbsp; P &mdash; PAUZA &nbsp;&middot;&nbsp; M &mdash; MUZYKA</p>
         </div>
     </div>
-    <div class="mid-btns">
-        <button class="touch-btn" id="musicBtn">&#9834;</button>
-        <button class="touch-btn" id="pauseBtn">&#10074;&#10074;</button>
-    </div>
-    <div class="pad-wrap">
+ 
+    <!-- Prawa kolumna: GUSTAV + pauza -->
+    <div class="side">
         <div class="pad-label gustav">GUSTAV</div>
-        <div class="pad">
-            <button class="touch-btn" data-key="ArrowUp">&#9650;</button>
-            <button class="touch-btn" data-key="ArrowDown">&#9660;</button>
-        </div>
+        <button class="touch-btn" data-key="ArrowUp" aria-label="Gustav w górę">&#9650;</button>
+        <button class="touch-btn" data-key="ArrowDown" aria-label="Gustav w dół">&#9660;</button>
+        <button class="touch-btn" id="pauseBtn" aria-label="Pauza">&#10074;&#10074;</button>
     </div>
 </div>
-
-<!-- Na iPhonie w pionie: prośba o obrót (gra działa poziomo jak na komputerze) -->
+ 
+<!-- Na telefonie w pionie: prośba o obrót -->
 <div id="rotate-overlay">
     <div class="phone">&#128241;</div>
     <p>OBRÓĆ TELEFON</p>
     <span>Psia Dogrywka działa w poziomie &ndash; jak na komputerze!</span>
 </div>
-
+ 
 <script>
 /* ============================================================
    PSIA DOGRYWKA 16-BIT
@@ -267,7 +330,7 @@
    Piłka: kurczak. Muzyka: chiptune'owy walczyk (Web Audio).
    Pokój: TV "HVNLAB", kucharz z garnkiem, dwie dziewczyny, kot.
    ============================================================ */
-
+ 
 const canvas = document.getElementById("pongCanvas");
 const ctx = canvas.getContext("2d");
 const uiScreen = document.getElementById("uiScreen");
@@ -275,10 +338,10 @@ const screenTitle = document.getElementById("screenTitle");
 const screenDesc = document.getElementById("screenDesc");
 const startBtn = document.getElementById("startBtn");
 const pauseBtn = document.getElementById("pauseBtn");
-
+ 
 const W = canvas.width, H = canvas.height;
 const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
-
+ 
 // Stan gry
 let gameRunning = false;
 let paused = false;
@@ -286,7 +349,7 @@ let tick = 0;
 let whistleT = -999;   // moment gwizdka sędziego (TRELE! po każdym punkcie)
 let score = { bruno: 0, gustav: 0 };
 const maxScore = 10;
-
+ 
 /* ---------- KLAWIATURA (e.code = odporność na Caps Lock) ---------- */
 const keys = {};
 window.addEventListener("keydown", e => {
@@ -297,28 +360,51 @@ window.addEventListener("keydown", e => {
     if ((e.code === "Enter" || e.code === "Space") && !gameRunning) startBtn.click();
 });
 window.addEventListener("keyup", e => keys[e.code] = false);
-
-/* ---------- STEROWANIE DOTYKOWE ---------- */
+ 
+/* ---------- STEROWANIE DOTYKOWE ----------
+   setPointerCapture: palec "przyklejony" do przycisku – ześlizgnięcie się
+   poza jego obrys nie przerywa ruchu psa (wcześniej robił to pointerleave).
+   Każdy przycisk ma własny pointerId, więc dwa palce naraz (obaj gracze) działają. */
 document.querySelectorAll(".touch-btn[data-key]").forEach(btn => {
     const code = btn.dataset.key;
-    const press = e => { e.preventDefault(); keys[code] = true; btn.classList.add("active"); };
-    const release = e => { keys[code] = false; btn.classList.remove("active"); };
+    const press = e => {
+        e.preventDefault();
+        try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+        keys[code] = true;
+        btn.classList.add("active");
+        resumeAudio();
+    };
+    const release = () => { keys[code] = false; btn.classList.remove("active"); };
     btn.addEventListener("pointerdown", press);
     btn.addEventListener("pointerup", release);
     btn.addEventListener("pointercancel", release);
-    btn.addEventListener("pointerleave", release);
+    btn.addEventListener("lostpointercapture", release);
     btn.addEventListener("contextmenu", e => e.preventDefault());
 });
-
-/* iOS: AudioContext lubi zostać wybudowany przez dotyk */
-window.addEventListener("pointerdown", () => {
-    if (AC && AC.state === "suspended") AC.resume();
-}, { passive: true });
-
-/* Blokada pozioma na telefonach – wykrywana w JS. Uwaga: media queries i wymiary okna (innerWidth/innerHeight)
-   wewnątrz iframe'a (np. podgląd CodePen na iPhonie) opisują IFRAME, nie telefon. Dlatego najpierw sprawdzamy
-   window.orientation / screen.orientation, które odpowiadają FIZYCZNEMU obrotowi urządzenia. */
+ 
+/* iOS: blokada zoomu gestem szczypania, przewijania i podwójnego tapnięcia */
+["gesturestart", "gesturechange", "gestureend"].forEach(ev =>
+    document.addEventListener(ev, e => e.preventDefault()));
+document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener("touchend", e => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 300) e.preventDefault();
+    lastTouchEnd = now;
+}, { passive: false });
+ 
+/* Wykrycie dotyku -> włącza klasę body.touch (pokazuje przyciski po bokach) */
+const isTouchDevice = (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
+if (isTouchDevice) document.body.classList.add("touch");
+ 
+/* Blokada pozioma TYLKO na telefonach (iPad w pionie nadal gra).
+   Telefon = krótszy bok ekranu fizycznego < 600 px. screen.width/height to rozmiar
+   urządzenia, a nie iframe'a, więc działa też w podglądach typu CodePen. */
 const rotateOverlay = document.getElementById("rotate-overlay");
+function isPhone() {
+    const shortSide = Math.min(screen.width || 9999, screen.height || 9999);
+    return isTouchDevice && shortSide < 600;
+}
 function isDevicePortrait() {
     if (screen.orientation && screen.orientation.type)
         return screen.orientation.type.indexOf("portrait") !== -1;
@@ -327,30 +413,51 @@ function isDevicePortrait() {
     return window.innerHeight > window.innerWidth;      // fallback: wymiary okna
 }
 function checkOrientation() {
-    const isTouch = (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
-    const lock = isTouch && isDevicePortrait();
+    const lock = isPhone() && isDevicePortrait();
     rotateOverlay.classList.toggle("show", lock);
     document.body.classList.toggle("portrait-lock", lock);
+    // w pionie nie gramy – zatrzymujemy grę, żeby piłka nie uciekała pod nakładką
+    if (lock && gameRunning && !paused) { paused = true; setPauseBtn(); }
 }
 window.addEventListener("resize", checkOrientation);
-window.addEventListener("orientationchange", () => setTimeout(checkOrientation, 150));
+window.addEventListener("orientationchange", () => { setTimeout(checkOrientation, 150); setTimeout(checkOrientation, 500); });
+if (screen.orientation && screen.orientation.addEventListener)
+    screen.orientation.addEventListener("change", () => setTimeout(checkOrientation, 100));
 checkOrientation();
-
+ 
 /* ============================ AUDIO ============================ */
 let AC = null, masterGain, musicGain, sfxGain, musicOn = true, musicStarted = false;
 let nextBarTime = 0, barIndex = 0;
 const mf = m => 440 * Math.pow(2, (m - 69) / 12);
-
+ 
 function initAudio() {
     if (AC) return;
     try {
+        // iOS: kanał "playback" sprawia, że dźwięk gra nawet przy wyciszonym przełączniku bocznym
+        if (navigator.audioSession) navigator.audioSession.type = "playback";
         AC = new (window.AudioContext || window.webkitAudioContext)();
         masterGain = AC.createGain(); masterGain.gain.value = 0.85; masterGain.connect(AC.destination);
         sfxGain = AC.createGain(); sfxGain.gain.value = 0.5; sfxGain.connect(masterGain);
         musicGain = AC.createGain(); musicGain.gain.value = musicOn ? 0.2 : 0; musicGain.connect(masterGain);
+        // iOS wymaga, by pierwszy dźwięk wystartował z gestu użytkownika – "odblokowujemy" cichym bufferem
+        const buf = AC.createBuffer(1, 1, 22050);
+        const src = AC.createBufferSource();
+        src.buffer = buf; src.connect(AC.destination); src.start(0);
+        // iOS potrafi sam przerwać kontekst (telefon, Siri, zmiana aplikacji) – wznawiamy
+        AC.onstatechange = () => { if (AC.state === "interrupted") resumeAudio(); };
     } catch (err) { AC = null; }
 }
-
+ 
+/* Wznawiaj ZAWSZE gdy stan != running (obejmuje "suspended" ORAZ "interrupted" z iOS) */
+function resumeAudio() {
+    if (AC && AC.state !== "running") {
+        const p = AC.resume();
+        if (p && p.catch) p.catch(() => {});
+    }
+}
+window.addEventListener("pointerdown", resumeAudio, { passive: true });
+window.addEventListener("touchend", resumeAudio, { passive: true });
+ 
 function tone(f, t, dur, type, vol, fEnd) {
     if (!AC) return;
     const o = AC.createOscillator(), g = AC.createGain();
@@ -363,7 +470,7 @@ function tone(f, t, dur, type, vol, fEnd) {
     o.connect(g); g.connect(sfxGain);
     o.start(t); o.stop(t + dur + 0.05);
 }
-
+ 
 /* Walczyk 3/4 – bas na "raz", akordy na "dwa-trzy", melodia u góry */
 const waltz = [
     { b: 48, c: [64, 67], m: [[67, 1], [72, 1], [76, 1]] }, // C
@@ -376,7 +483,7 @@ const waltz = [
     { b: 48, c: [64, 67], m: [[72, 2], [0, 1]] }             // C
 ];
 const BPM = 180, BEAT = 60 / BPM;
-
+ 
 function mTone(f, t, dur, type, vol) {
     const o = AC.createOscillator(), g = AC.createGain();
     o.type = type; o.frequency.setValueAtTime(f, t);
@@ -386,7 +493,7 @@ function mTone(f, t, dur, type, vol) {
     o.connect(g); g.connect(musicGain);
     o.start(t); o.stop(t + dur + 0.05);
 }
-
+ 
 function scheduleBar(t) {
     const bar = waltz[barIndex % waltz.length];
     mTone(mf(bar.b), t, BEAT * 0.95, "triangle", 0.55);              // "OOM"
@@ -400,32 +507,38 @@ function scheduleBar(t) {
         tb += d * BEAT;
     }
 }
-
+ 
 function musicLoop() {
     if (!AC) return;
-    while (nextBarTime < AC.currentTime + 0.35) {
-        scheduleBar(nextBarTime);
-        nextBarTime += 3 * BEAT;
-        barIndex++;
+    // gdy kontekst nie gra (pauza systemowa), nie kolejkujemy taktów w nieskończoność
+    if (AC.state === "running") {
+        // jeśli zegar audio uciekł do przodu (po przerwaniu), dogonić bez zalewu taktów
+        if (nextBarTime < AC.currentTime - 0.5) nextBarTime = AC.currentTime + 0.1;
+        while (nextBarTime < AC.currentTime + 0.35) {
+            scheduleBar(nextBarTime);
+            nextBarTime += 3 * BEAT;
+            barIndex++;
+        }
     }
     setTimeout(musicLoop, 120);
 }
-
+ 
 function startMusic() {
     initAudio();
-    if (!AC || musicStarted) return;
-    AC.resume();
+    if (!AC) return;
+    resumeAudio();
+    if (musicStarted) return;
     musicStarted = true;
     nextBarTime = AC.currentTime + 0.15;
     barIndex = 0;
     musicLoop();
 }
-
+ 
 function toggleMusic() {
     musicOn = !musicOn;
     if (musicGain) musicGain.gain.value = musicOn ? 0.2 : 0;
 }
-
+ 
 /* Efekty dźwiękowe (chiptune) */
 function sfxPaddle(speed) {
     if (!AC) return; const t = AC.currentTime;
@@ -458,16 +571,16 @@ function sfxStart() {
     if (!AC) return; const t = AC.currentTime;
     [60, 64, 67, 72].forEach((n, i) => tone(mf(n), t + i * 0.07, 0.1, "square", 0.25));
 }
-
+ 
 /* ======================= TŁO (POKÓJ) ======================= */
 const bg = document.createElement("canvas");
 bg.width = W; bg.height = H;
 const bx = bg.getContext("2d");
 const bpx = (x, y, w, h, c) => { bx.fillStyle = c; bx.fillRect(x, y, w, h); };
-
+ 
 const winL = { x: 62, y: 44, w: 70, h: 58 };
 const winR = { x: 268, y: 44, w: 70, h: 58 };
-
+ 
 function buildBG() {
     // Tapeta
     bpx(0, 0, W, 214, "#b89d78");
@@ -500,7 +613,7 @@ function buildBG() {
     bpx(89, 69, 2, 2, "#ffd93b");
 }
 buildBG();
-
+ 
 // Chmurki za oknami
 function drawWindow(win, t) {
     px(win.x, win.y, win.w, win.h, "#aee3ff");
@@ -520,7 +633,7 @@ function drawWindow(win, t) {
     px(win.x + win.w / 2 - 2, win.y, 4, win.h, "#f2e8d0");
     px(win.x, win.y + win.h / 2 - 2, win.w, 4, "#f2e8d0");
 }
-
+ 
 /* Telewizor retro z mrugającym napisem HVNLAB (zamiast obrazka) */
 function drawTV(t) {
     const tx = 174, ty = 46;
@@ -554,7 +667,7 @@ function drawTV(t) {
     px(tx + 38, ty + 33, 3, 3, "#8395a7");
     px(tx + 24, ty + 36, 4, 3, "#54351a");
 }
-
+ 
 /* Grubszy facet przy stole – miesza łyżką w garnku (para się unosi!). 100% większy! */
 function drawCook(t) {
     const SKIN = "#f0c8a0", SHIRT = "#4a7a5a", HAIR = "#2d2d33";
@@ -603,11 +716,11 @@ function drawCook(t) {
     }
     ctx.globalAlpha = 1;
 }
-
+ 
 /* Dziewczyny na szarej kanapie: gadająca i pisząca na telefonie. Obie 100% większe! */
 function drawGirls(t) {
     const HAIR = "#1d1d24", SKIN = "#f0c8a0";
-
+ 
     // ----- SZARA KANAPA (dwuosobowa) -----
     px(274, 156, 112, 54, "#8a9099");          // oparcie
     px(274, 156, 112, 3, "#9aa3ad");           // górna krawędź oparcia
@@ -617,7 +730,7 @@ function drawGirls(t) {
     px(274, 204, 112, 3, "#8a9099");
     px(276, 218, 6, 10, "#5d3619");            // nóżki
     px(378, 218, 6, 10, "#5d3619");
-
+ 
     // ----- Dziewczyna 1: gada (po lewej, patrzy w prawo) -----
     const g1 = 300;
     px(g1, 144, 24, 8, HAIR);                  // włosy
@@ -641,7 +754,7 @@ function drawGirls(t) {
         ctx.fillStyle = "#555";
         for (let d = 0; d <= dots && d < 3; d++) ctx.fillRect(331 + d * 5, 132, 3, 3);
     }
-
+ 
     // ----- Dziewczyna 2: pisze na telefonie (po prawej, patrzy w dół) -----
     const g2 = 344;
     px(g2, 144, 24, 8, HAIR);
@@ -663,7 +776,7 @@ function drawGirls(t) {
     // kciuk stuka w ekran
     if ((t % 12) < 6) px(g2 + 13, 180, 4, 4, SKIN); else px(g2 + 11, 182, 4, 4, SKIN);
 }
-
+ 
 /* Sędzia psiej rozgrywki – łysy, z brodą, gwiżdże po każdym punkcie. Trochę większy, z okrągłą głową! */
 function drawReferee(t) {
     const SKIN = "#f0c8a0", BEARD = "#4a3222";
@@ -711,7 +824,7 @@ function drawReferee(t) {
         ctx.fillText("TRELE!", 99, 118);
     }
 }
-
+ 
 /* Kot na prawym parapecie – patrzy na kurczaka! */
 function drawCat(t) {
     const sillTop = 102, cx0 = 292;
@@ -743,7 +856,7 @@ function drawCat(t) {
     px(hx - 2, hy + 5, 2, 1, "#999"); px(hx - 3, hy + 7, 3, 1, "#999"); // wąsy
     px(hx + 11, hy + 5, 2, 1, "#999"); px(hx + 11, hy + 7, 3, 1, "#999");
 }
-
+ 
 /* ======================= ZAWODNICY ======================= */
 class DogPaddle {
     constructor(x, type) {
@@ -761,7 +874,7 @@ class DogPaddle {
         if (this.type === "bruno") drawBruno(P, t); else drawGustav(P, t);
     }
 }
-
+ 
 /* BRUNO – jamnik szorstkowłosy CZARNO-BRĄZOWY: czarna sierść, brązowy pysk, łapki i plamki nad oczami */
 function drawBruno(P, t) {
     const BLACK = "#2b2b33", TANP = "#c88a4a", ROUGH = "#45454f", BEARD = "#4a2c10";
@@ -781,7 +894,7 @@ function drawBruno(P, t) {
     P(12, 56, 4, 3, BLACK); P(15 + wag, 55, 3, 2, TANP);  // ogonek z brązowym końcem
     P(3, 60, 8, 4, TANP); P(3, 63, 1, 1, "#fff"); P(7, 63, 1, 1, "#fff"); // brązowe łapki
 }
-
+ 
 /* GUSTAV – gryfonik brukselski: jaśniejsza ruda szorstka sierść, wielka broda, wybałuszone oczy */
 function drawGustav(P, t) {
     const COAT = "#c98e50", DARKR = "#a06a33", BEARD = "#40200e";
@@ -805,10 +918,10 @@ function drawGustav(P, t) {
     P(0, 54, 4, 3, COAT); P(0, 48 + sway, 3, 6, COAT);    // zawinięty ogonek
     P(4, 58, 8, 4, "#b57a3e"); P(4, 61, 1, 1, "#fff"); P(8, 61, 1, 1, "#fff");
 }
-
+ 
 const bruno = new DogPaddle(12, "bruno");
 const gustav = new DogPaddle(W - 16 - 12, "gustav");
-
+ 
 /* ======================= KURCZAK (piłka) ======================= */
 class Chicken {
     constructor() { this.reset(); }
@@ -845,7 +958,7 @@ class Chicken {
     }
 }
 const ball = new Chicken();
-
+ 
 /* ======================= PIÓRKA / EFEKTY ======================= */
 let particles = [];
 function feathers(x, y, n) {
@@ -859,30 +972,30 @@ function feathers(x, y, n) {
         });
     }
 }
-
+ 
 /* ======================= KOLIZJE ======================= */
 function checkCollision(b, p) {
     const overlapX = b.x + b.radius > p.x && b.x - b.radius < p.x + p.width;
     const overlapY = b.y + b.radius > p.y && b.y - b.radius < p.y + p.height;
     if (!overlapX || !overlapY) return;
-
+ 
     const isLeft = p.type === "bruno";
     const movingLeft = b.dx < 0;
     if (movingLeft !== isLeft) return; // odbicie tylko od przedniej ścianki
-
+ 
     const cp = Math.max(-1, Math.min(1, (b.y - (p.y + p.height / 2)) / (p.height / 2)));
     const angle = (Math.PI / 3) * cp;
     const dir = isLeft ? 1 : -1;
-
+ 
     b.speed = Math.min(b.speed + 0.25, 7);
     b.dx = dir * b.speed * Math.cos(angle);
     b.dy = b.speed * Math.sin(angle);
     b.x = isLeft ? p.x + p.width + b.radius : p.x - b.radius; // wypchnięcie
-
+ 
     sfxPaddle(b.speed);
     feathers(b.x, b.y, 8);
 }
-
+ 
 /* ======================= HUD ======================= */
 function text(x, y, s, c, size, bold) {
     ctx.textAlign = "center";
@@ -901,34 +1014,45 @@ function drawHUD() {
     ctx.fillStyle = "rgba(255,255,255,0.10)";
     for (let y = 4; y < H - 4; y += 10) ctx.fillRect(W / 2 - 1, y, 2, 6);
 }
-
+ 
 /* ======================= PAUZA ======================= */
 function setPauseBtn() {
     pauseBtn.innerHTML = paused ? "&#9654;" : "&#10074;&#10074;";
 }
 function togglePause() {
     if (!gameRunning) return;
+    // w pionie na telefonie nie wolno wznowić (gra jest ukryta pod nakładką)
+    if (paused && document.body.classList.contains("portrait-lock")) return;
     paused = !paused;
     setPauseBtn();
-    if (AC && AC.state === "suspended") AC.resume();
+    resumeAudio();
 }
 pauseBtn.addEventListener("click", togglePause);
 pauseBtn.addEventListener("contextmenu", e => e.preventDefault());
 const musicBtn = document.getElementById("musicBtn");
 musicBtn.addEventListener("click", toggleMusic);
 musicBtn.addEventListener("contextmenu", e => e.preventDefault());
-// automatyczna pauza przy przełączeniu aplikacji / telefonie
+ 
+// automatyczna pauza przy przełączeniu aplikacji / telefonie / blokadzie ekranu
+function autoPause() {
+    if (gameRunning && !paused) { paused = true; setPauseBtn(); }
+    // puszczamy wszystkie przyciski, żeby pies nie "uciekł" po powrocie
+    for (const k in keys) keys[k] = false;
+    document.querySelectorAll(".touch-btn.active").forEach(b => b.classList.remove("active"));
+}
 document.addEventListener("visibilitychange", () => {
-    if (document.hidden && gameRunning && !paused) { paused = true; setPauseBtn(); }
+    if (document.hidden) autoPause(); else resumeAudio();
 });
-
+window.addEventListener("pagehide", autoPause);
+window.addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+ 
 function drawPauseBanner() {
     ctx.fillStyle = "rgba(10,12,30,0.6)";
     ctx.fillRect(0, H / 2 - 26, W, 52);
     text(W / 2, H / 2 - 2, "PAUZA", "#ffd93b", 18, true);
-    text(W / 2, H / 2 + 16, "P LUB \u25B6 = WZN\u00D3W", "#8395a7", 8, false);
+    text(W / 2, H / 2 + 16, isTouchDevice ? "DOTKNIJ \u25B6 = WZN\u00D3W" : "P LUB \u25B6 = WZN\u00D3W", "#8395a7", 8, false);
 }
-
+ 
 /* ======================= SCENA ======================= */
 function drawScene(t) {
     ctx.drawImage(bg, 0, 0);
@@ -950,8 +1074,9 @@ function drawScene(t) {
     gustav.draw(t);
     ball.draw(t);
 }
-
+ 
 /* ======================= PĘTLA GRY ======================= */
+let loopId = 0; // zabezpieczenie przed podwójną pętlą po wielokrotnym "START"
 function gameLoop() {
     if (!gameRunning) return;
     tick++;
@@ -961,14 +1086,14 @@ function gameLoop() {
         gustav.update("ArrowUp", "ArrowDown");
         checkCollision(ball, bruno);
         checkCollision(ball, gustav);
-
+ 
         // aktualizacja piórek (od tyłu, żeby splice nie gubił elementów)
         for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
             p.x += p.dx; p.y += p.dy; p.dy += 0.12; p.life -= 0.025;
             if (p.life <= 0) particles.splice(i, 1);
         }
-
+ 
         // punkty (sędzia gwizdże!)
         if (ball.x + ball.radius < -6) {
             score.gustav++;
@@ -980,9 +1105,9 @@ function gameLoop() {
     }
     drawScene(tick);
     if (paused) drawPauseBanner();
-    requestAnimationFrame(gameLoop);
+    loopId = requestAnimationFrame(gameLoop);
 }
-
+ 
 function checkGameOver() {
     if (score.bruno >= maxScore || score.gustav >= maxScore) {
         gameRunning = false;
@@ -1000,11 +1125,11 @@ function checkGameOver() {
     }
     return false;
 }
-
+ 
 /* ======================= START ======================= */
 startBtn.addEventListener("click", () => {
     uiScreen.classList.add("hidden");
-    startMusic();
+    startMusic();          // wywołane z gestu (tap) – wymagane przez iOS
     sfxStart();
     score = { bruno: 0, gustav: 0 };
     particles.length = 0;
@@ -1012,14 +1137,28 @@ startBtn.addEventListener("click", () => {
     bruno.y = H / 2 - 32; gustav.y = H / 2 - 32;
     paused = false;
     setPauseBtn();
+    cancelAnimationFrame(loopId);
     gameRunning = true;
     whistleT = tick;   // gwizdek sędziego na początek meczu!
     drawScene(tick);
     gameLoop();
 });
-
+ 
+/* Skalowanie menu do aktualnej szerokości planszy */
+const gameBox = document.getElementById("game-container");
+function fitUI() {
+    const w = gameBox.clientWidth;
+    if (w < 50) return; // plansza ukryta (np. nakładka "obróć telefon")
+    gameBox.style.setProperty("--s", (w / 800).toFixed(3));
+}
+if (window.ResizeObserver) new ResizeObserver(fitUI).observe(gameBox);
+window.addEventListener("resize", fitUI);
+window.addEventListener("orientationchange", () => { setTimeout(fitUI, 200); setTimeout(fitUI, 600); });
+fitUI();
+ 
 // Pierwsza klatka w tle (pod przygaszonym menu)
 drawScene(0);
 </script>
 </body>
 </html>
+ 
